@@ -9,3 +9,5 @@ Local verification used `@vercel/express@17.0.0` and `@vercel/node@22.0.0`, the 
 Runtime checks exercise the exported deployment app, Swagger HTML and initialization, asset availability, security headers, and unauthorized API rejection. The backend API/authentication tests also pass.
 
 This verifies the local Vercel builder and app, not a hosted deployment. Redeploy the updated repository. Configure `DATABASE_URL`, `CORS_ORIGIN`, `API_PUBLIC_URL`, and `NODE_ENV=production` in Vercel. Configure the dashboard's `API_INTERNAL_URL` with the deployed backend origin. The local environment file is not uploaded. Builds do not apply migrations or change administrator accounts.
+
+Vercel's outer configuration schema requires `includeFiles` and `excludeFiles` to be strings, even though the underlying builder also accepts arrays. The configuration uses `includeFiles: "dist/**"` and one brace-expanded exclusion glob. The complete `vercel.json` is validated against the official remote schema, in addition to the builder packaging checks.

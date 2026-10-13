@@ -5,8 +5,8 @@
   "outputDirectory": null,
   "functions": {
     "app.mjs": {
-      "includeFiles": ["dist/**"],
-      "excludeFiles": [".env", ".env.*", ".deployment-check/**"]
+      "includeFiles": "dist/**",
+      "excludeFiles": "{.env,.env.*,.deployment-check/**}"
     }
   }
 }
