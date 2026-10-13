@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "express",
+  "buildCommand": "npm run build",
+  "outputDirectory": null,
+  "functions": {
+    "app.mjs": {
+      "includeFiles": ["dist/**"],
+      "excludeFiles": [".env", ".env.*", ".deployment-check/**"]
+    }
+  }
+}

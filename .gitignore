@@ -5,3 +5,6 @@ dist/
 !.env.example
 src/generated/
 coverage/
+.deployment-check/
+.vercel/
+public/swagger/

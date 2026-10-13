@@ -1,6 +1,6 @@
 # Influencers World API
 
-Express 5, TypeScript, Prisma 7, and PostgreSQL. Use Node 22.12+ within the Node 22 release series. The backend root URL redirects directly to Swagger.
+Express 5, TypeScript, Prisma 7, and PostgreSQL. Use Node 24.x, matching the Vercel project runtime. The backend root URL redirects directly to Swagger.
 
 ## Setup
 
@@ -67,8 +67,8 @@ Dependency overrides pin patched `deepmerge-ts` and `mysql2` versions used by th
 
 ## Vercel
 
-Use the Express framework preset and `npm run build`. `src/app.ts` exports the Express application for Vercel; `src/server.ts` starts a listener for local development and `npm start`. The database client is initialized once per application instance in `src/database.ts`. The application factory and tests live separately in `src/application.ts`.
+The checked-in `vercel.json` selects Express, runs `npm run build`, and clears any static output-directory override. The root `app.mjs` is Vercel's deployment entry point and imports the already compiled `dist/app.js`. This avoids a second TypeScript compilation with Vercel-specific module resolution. The compiled `dist/**` files, including the generated Prisma client, are explicitly included in the function. `src/server.ts` remains the local listener for development and `npm start`. The database client is initialized once per application instance in `src/database.ts`.
 
-The Node.js engine is pinned to `22.x` to avoid unexpected major runtime upgrades. Configure `DATABASE_URL`, `CORS_ORIGIN` (dashboard origin), `API_PUBLIC_URL` (backend origin), and `NODE_ENV=production` in Vercel's environment settings. The local `.env` is ignored by Git and is not deployed. Database migrations and administrator bootstrap remain explicit operations; builds do not change your database or reset your administrator.
+The Node.js engine is pinned to `24.x`, matching the project settings shown in your deployment logs. Configure `DATABASE_URL`, `CORS_ORIGIN` (dashboard origin), `API_PUBLIC_URL` (backend origin), and `NODE_ENV=production` in Vercel's environment settings. Set the dashboard's `API_INTERNAL_URL` to the deployed backend URL. The local `.env` is excluded from source uploads and function packaging. Database migrations and administrator bootstrap remain explicit operations; builds do not change your database or reset your administrator.
 
-Helmet is imported as a module namespace and invoked through its typed `default` export, which avoids the non-callable namespace error seen in Vercel's TypeScript compilation.
+Security headers use Helmet's named middleware exports, preserving the same header set while removing the ambiguous default export that failed in Vercel. The build also copies Swagger UI's CSS, JavaScript, and favicon assets to `public/swagger` so Vercel serves them as static files; the Swagger page and initialization script are still served by Express. No external CDN is required.

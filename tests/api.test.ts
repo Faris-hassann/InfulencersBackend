@@ -7,6 +7,12 @@ import { memoryDatabase, authenticatedApp } from "./fixtures.js";
 
 const content = { title: "A useful idea", description: "<p>A <strong>formatted</strong> description.</p>", imageUrl: "https://example.com/cover.jpg", youtubeUrl: "https://www.youtube.com/watch?v=example", publishedOn: "2026-10-14T12:00:00.000Z" };
 const contact = { firstName: "Sara", lastName: "Ali", description: "Please get in touch.", email: "sara@example.com", phoneNumber: "+20 100 123 4567", createdOn: "2026-10-14T12:00:00.000Z" };
+test("named Helmet middleware preserves the full security header set", async () => {
+  const response = await request(createApp(memoryDatabase())).get("/").expect(302);
+  const expected = { "cross-origin-opener-policy": "same-origin", "cross-origin-resource-policy": "same-origin", "origin-agent-cluster": "?1", "referrer-policy": "no-referrer", "strict-transport-security": "max-age=31536000; includeSubDomains", "x-content-type-options": "nosniff", "x-dns-prefetch-control": "off", "x-download-options": "noopen", "x-frame-options": "SAMEORIGIN", "x-permitted-cross-domain-policies": "none", "x-xss-protection": "0" };
+  for (const [header, value] of Object.entries(expected)) assert.equal(response.headers[header], value, header);
+  assert.equal(response.headers["x-powered-by"], undefined);
+});
 for (const resource of resources) {
   test(`${resource.name}: create, list, view, PUT, PATCH, delete`, async () => {
     const { agent } = await authenticatedApp(); const path = `/api/${resource.slug}`; const data = resource.model === "contact" ? contact : content;
@@ -61,6 +67,8 @@ test("Swagger redirect, OpenAPI contract, health and unavailable database", asyn
   const redirect = await agent.get("/").expect(302); assert.equal(redirect.headers.location, "/swagger");
   assert.equal(redirect.headers["x-content-type-options"], "nosniff");
   assert.equal(redirect.headers["x-frame-options"], "SAMEORIGIN");
+  const swaggerRedirect = await agent.get("/swagger").expect(301);
+  assert.equal(swaggerRedirect.headers.location, "/swagger/");
   await agent.get("/swagger/").expect(200);
   const swaggerScript = await agent.get("/swagger/swagger-ui-init.js").expect(200);
   assert.match(swaggerScript.text, /X-CMS-Request/);

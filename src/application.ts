@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler } from "express";
 import cors from "cors";
-import * as helmet from "helmet";
+import { crossOriginOpenerPolicy, crossOriginResourcePolicy, originAgentCluster, referrerPolicy, strictTransportSecurity, xContentTypeOptions, xDnsPrefetchControl, xDownloadOptions, xFrameOptions, xPermittedCrossDomainPolicies, xPoweredBy, xXssProtection } from "helmet";
 import swaggerUi from "swagger-ui-express";
 import { ZodError } from "zod";
 import { resources } from "./resources.js";
@@ -21,11 +21,15 @@ export type Database = Record<(typeof resources)[number]["model"], Delegate> & A
 export function createApp(db: Database) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(helmet.default({ contentSecurityPolicy: false }));
+  // Named middleware exports avoid Helmet's ambiguous CJS/ESM default type.
+  // This is the same default header set as helmet({ contentSecurityPolicy: false }).
+  app.use(crossOriginOpenerPolicy(), crossOriginResourcePolicy(), originAgentCluster(), referrerPolicy(), strictTransportSecurity(), xContentTypeOptions(), xDnsPrefetchControl(), xDownloadOptions(), xFrameOptions(), xPermittedCrossDomainPolicies(), xPoweredBy(), xXssProtection());
   app.use(cors({ credentials: true, origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map(value => value.trim()) }));
   app.use(express.json({ limit: "1mb" }));
   app.get("/", (_req, res) => res.redirect(302, "/swagger"));
   app.get("/openapi.json", (_req, res) => res.json(openapi));
+  // Relative Swagger asset URLs need the slash, independently of static middleware.
+  app.get(/^\/swagger$/, (_req, res) => res.redirect(301, "/swagger/"));
   app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
   app.get("/health", async (_req, res) => {
     try { await db.$queryRawUnsafe("SELECT 1"); res.json({ status: "ok", database: "connected" }); }
