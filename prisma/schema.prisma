@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Book {
+  id Int @id @default(autoincrement())
+  title String @db.VarChar(250)
+  description String @db.Text
+  imageUrl String @db.VarChar(2048)
+  youtubeUrl String @db.VarChar(2048)
+  publishedOn DateTime @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("books")
+}
+
+model Podcast {
+  id Int @id @default(autoincrement())
+  title String @db.VarChar(250)
+  description String @db.Text
+  imageUrl String @db.VarChar(2048)
+  youtubeUrl String @db.VarChar(2048)
+  publishedOn DateTime @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("podcasts")
+}
+
+model Tip {
+  id Int @id @default(autoincrement())
+  title String @db.VarChar(250)
+  description String @db.Text
+  imageUrl String @db.VarChar(2048)
+  youtubeUrl String @db.VarChar(2048)
+  publishedOn DateTime @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("tips_and_tricks")
+}
+
+model News {
+  id Int @id @default(autoincrement())
+  title String @db.VarChar(250)
+  description String @db.Text
+  imageUrl String @db.VarChar(2048)
+  youtubeUrl String @db.VarChar(2048)
+  publishedOn DateTime @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("news")
+}
+
+model Newsletter {
+  id Int @id @default(autoincrement())
+  title String @db.VarChar(250)
+  description String @db.Text
+  imageUrl String @db.VarChar(2048)
+  youtubeUrl String @db.VarChar(2048)
+  publishedOn DateTime @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("newsletters")
+}
+
+model Contact {
+  id Int @id @default(autoincrement())
+  firstName String @db.VarChar(100)
+  lastName String @db.VarChar(100)
+  description String @db.Text
+  email String @db.VarChar(254)
+  phoneNumber String @db.VarChar(32)
+  createdOn DateTime @default(now()) @db.Timestamptz(3)
+  @@index([createdOn, id])
+  @@map("contacts")
+}
