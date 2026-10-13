@@ -56,6 +56,7 @@ List parameters: `page` (default 1), `pageSize` (default 10, maximum 100), `sear
 ```powershell
 npm test
 npm run build
+npm run test:runtime
 npm start
 ```
 
@@ -72,3 +73,5 @@ The checked-in `vercel.json` selects Express, runs `npm run build`, and clears a
 The Node.js engine is pinned to `24.x`, matching the project settings shown in your deployment logs. Configure `DATABASE_URL`, `CORS_ORIGIN` (dashboard origin), `API_PUBLIC_URL` (backend origin), and `NODE_ENV=production` in Vercel's environment settings. Set the dashboard's `API_INTERNAL_URL` to the deployed backend URL. The local `.env` is excluded from source uploads and function packaging. Database migrations and administrator bootstrap remain explicit operations; builds do not change your database or reset your administrator.
 
 Security headers use Helmet's named middleware exports, preserving the same header set while removing the ambiguous default export that failed in Vercel. The build also copies Swagger UI's CSS, JavaScript, and favicon assets to `public/swagger` so Vercel serves them as static files; the Swagger page and initialization script are still served by Express. No external CDN is required.
+
+The build bundles the validation module and its sanitizer dependencies into `dist/validation.js`. `sanitize-html` uses CommonJS to load the ESM-only `htmlparser2` 12; bundling removes that runtime module boundary so startup works even when the serverless runtime disables `require(ESM)`. The current sanitizer and parser security fixes are preserved. After building, `npm run test:runtime` checks the actual deployment entry point with `--no-experimental-require-module`, including the root redirect, Swagger HTML/assets, OpenAPI, and rich-text sanitization, without connecting to a database.
