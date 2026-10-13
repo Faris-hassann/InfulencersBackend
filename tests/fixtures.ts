@@ -1,9 +1,27 @@
 import type { Database, Delegate } from "../src/app.js";
 import { resources } from "../src/resources.js";
+import { hashPassword, hashToken, type AdminIdentity } from "../src/auth.js";
+import request from "supertest";
+import { createApp } from "../src/app.js";
+
+export const TEST_EMAIL = "admin@example.test";
+export const TEST_PASSWORD = "Test-password-2026";
+const testHash = hashPassword(TEST_PASSWORD);
 
 // Test-only storage. The application server always uses PostgreSQL through Prisma.
 export function memoryDatabase(): Database {
   const database = { $queryRawUnsafe: async () => [{ "?column?": 1 }] } as unknown as Database;
+  const admins = new Map<number, AdminIdentity>();
+  const sessions = new Map<string, any>();
+  database.admin = {
+    findUnique: async ({ where }) => where.id ? admins.get(where.id) ?? null : [...admins.values()].find(admin => admin.email === where.email) ?? null,
+    upsert: async ({ where, create, update }) => { const found = [...admins.values()].find(admin => admin.email === where.email); const value = found ? { ...found, ...update } : { id: admins.size + 1, enabled: true, role: "admin", ...create }; admins.set(value.id, value); return value; },
+  };
+  database.adminSession = {
+    create: async ({ data }) => { sessions.set(data.tokenHash, data); return data; },
+    findUnique: async ({ where }) => { const session = sessions.get(where.tokenHash); return session ? { ...session, admin: admins.get(session.adminId) } : null; },
+    deleteMany: async ({ where }) => { let count = 0; for (const [key, session] of sessions) { const match = (condition: any) => (condition.tokenHash && key === condition.tokenHash) || (condition.expiresOn && session.expiresOn <= condition.expiresOn.lte); if (match(where) || where.OR?.some(match)) { sessions.delete(key); count++; } } return { count }; },
+  };
   for (const resource of resources) {
     const records = new Map<number, any>(); let nextId = 1;
     const missing = () => Object.assign(new Error("Not found"), { code: "P2025" });
@@ -24,4 +42,13 @@ export function memoryDatabase(): Database {
     database[resource.model] = delegate;
   }
   return database;
+}
+
+export async function authenticatedApp(database = memoryDatabase()) {
+  await database.admin.upsert({ where: { email: TEST_EMAIL }, create: { email: TEST_EMAIL, passwordHash: await testHash }, update: {} });
+  const app = createApp(database);
+  const agent = request.agent(app);
+  agent.set("X-CMS-Request", "1");
+  await agent.post("/auth/login").send({ email: TEST_EMAIL, password: TEST_PASSWORD }).expect(200);
+  return { app, agent, database };
 }

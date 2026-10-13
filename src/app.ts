@@ -6,6 +6,7 @@ import { ZodError } from "zod";
 import { resources } from "./resources.js";
 import { bodySchema, idSchema, querySchema } from "./validation.js";
 import { openapi } from "./openapi.js";
+import { createAuth, type AuthDatabase } from "./auth.js";
 
 // Small adapter interface keeps the HTTP contract independently testable.
 export interface Delegate {
@@ -16,20 +17,23 @@ export interface Delegate {
   update(args: any): Promise<any>;
   delete(args: any): Promise<any>;
 }
-export type Database = Record<(typeof resources)[number]["model"], Delegate> & { $queryRawUnsafe(query: string): Promise<unknown> };
+export type Database = Record<(typeof resources)[number]["model"], Delegate> & AuthDatabase & { $queryRawUnsafe(query: string): Promise<unknown> };
 export function createApp(db: Database) {
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(cors({ origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map(value => value.trim()) }));
+  app.use(cors({ credentials: true, origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map(value => value.trim()) }));
   app.use(express.json({ limit: "1mb" }));
   app.get("/", (_req, res) => res.redirect(302, "/swagger"));
   app.get("/openapi.json", (_req, res) => res.json(openapi));
-  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", swaggerOptions: { persistAuthorization: true } }));
+  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
   app.get("/health", async (_req, res) => {
     try { await db.$queryRawUnsafe("SELECT 1"); res.json({ status: "ok", database: "connected" }); }
     catch { res.status(503).json({ status: "unavailable", database: "disconnected" }); }
   });
+  const auth = createAuth(db);
+  app.use("/auth", auth.router);
+  app.use("/api", auth.authenticate, auth.csrf, (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.get("/api/summary", async (_req, res) => {
     const totals = await Promise.all(resources.map(async resource => [resource.slug, await db[resource.model].count()]));
     res.json(Object.fromEntries(totals));

@@ -12,12 +12,25 @@ Copy-Item .env.example .env
 # Edit .env and set your PostgreSQL DATABASE_URL.
 npm run prisma:generate
 npm run db:deploy
+npm run admin:create
 npm run dev
 ```
 
 Open http://localhost:4000 to enter Swagger. `/swagger` also opens the documentation; `/openapi.json` returns the specification. `/health` checks the database connection. Swagger remains available when the database is offline.
 
-The included initial migration creates all six tables. `db:deploy` applies it without resetting existing data. For later schema changes use `npm run db:migrate -- --name your_change`. Do not use the example password for an actual database.
+The included migrations create all six content/contact tables and the `admins` and `admin_sessions` tables. `db:deploy` applies them without resetting existing data. For later schema changes use `npx prisma migrate dev --name your_change`. Do not use the example database password for an actual database.
+
+## Authentication and authorization
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the ignored backend `.env`, then run `npm run admin:create` after migrations. This creates the supplied administrator with a salted scrypt password hash and the `admin` role. The local configuration is already populated with the credentials you supplied, and that account has been created in your configured database. The bootstrap command preserves any existing account's password and access settings instead of resetting them. The bootstrap password can be removed from `.env` after creation; it is not required by the running server.
+
+`POST /auth/login` accepts `{ email, password }`. Email matching is case-insensitive. Only enabled accounts with the `admin` role can sign in. Incorrect credentials produce a generic 401 response. Five invalid attempts from an IP trigger a 15-minute cooldown; throttling is process-local, so multiple server instances need a shared gateway limiter.
+
+Login generates a random 256-bit session token and sets an eight-hour HttpOnly, SameSite Strict cookie named `iw_admin_session`. Only the token's SHA-256 hash is stored in PostgreSQL. Session state survives server restarts. `GET /auth/me` validates expiry, current role, and enabled status. `POST /auth/logout` deletes the current stored session and clears the cookie. Login rotates an existing session cookie. Expired sessions are rejected and cleaned up during successful logins.
+
+Every `/api/*` endpoint requires authentication and the current `admin` role. Missing, forged, revoked, and expired sessions return 401. Disabled or non-admin identities return 403. Authenticated CMS responses are not cached. All non-read requests require `X-CMS-Request: 1`; when an Origin is present, it must match `CORS_ORIGIN` or `API_PUBLIC_URL`. Swagger adds this header automatically. Use Swagger's `/auth/login` endpoint first; the browser sends its issued cookie for later calls. Documentation and health remain public.
+
+In production use HTTPS, `NODE_ENV=production`, and the actual `API_PUBLIC_URL`/`CORS_ORIGIN`. Production cookies use Secure automatically; `COOKIE_SECURE=true` enables it in other environments. The dashboard proxies API calls through its own origin. Configure CORS for that dashboard origin. The API does not trust client-supplied forwarded IP headers.
 
 ## Routes
 
@@ -46,7 +59,7 @@ npm run build
 npm start
 ```
 
-API tests exercise all six HTTP contracts using isolated in-memory test delegates; they do not replace PostgreSQL migration testing. Production requests always use Prisma and PostgreSQL. There is no authentication in this requested implementation; configure access control before exposing administration outside a trusted local environment. CORS allows the configured dashboard origins and is not authentication.
+API tests exercise all six authenticated HTTP contracts using isolated in-memory test delegates. Authentication tests cover password hashing, unauthenticated access, role enforcement, disabled accounts, cookie settings, invalid credentials, throttling, session rotation, expiry, logout revocation, and CSRF checks. Production requests always use Prisma and PostgreSQL.
 
 The Prisma adapter uses a pool of 10 connections with a connection timeout. Set `CORS_ORIGIN` to a comma-separated allowlist if the dashboard is hosted on another origin. `.env` is ignored by Git. No database connection is needed to generate the Prisma client or compile the application.
 

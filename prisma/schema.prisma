@@ -9,6 +9,28 @@ datasource db {
   provider = "postgresql"
 }
 
+model Admin {
+  id Int @id @default(autoincrement())
+  email String @unique @db.VarChar(254)
+  passwordHash String @db.VarChar(512)
+  role String @default("admin") @db.VarChar(32)
+  enabled Boolean @default(true)
+  createdOn DateTime @default(now()) @db.Timestamptz(3)
+  sessions AdminSession[]
+  @@map("admins")
+}
+
+model AdminSession {
+  tokenHash String @id @db.VarChar(64)
+  adminId Int
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresOn DateTime @db.Timestamptz(3)
+  createdOn DateTime @default(now()) @db.Timestamptz(3)
+  @@index([adminId])
+  @@index([expiresOn])
+  @@map("admin_sessions")
+}
+
 model Book {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
