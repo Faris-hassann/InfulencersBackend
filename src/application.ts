@@ -33,7 +33,11 @@ export function createApp(db: Database) {
   app.get("/openapi.json", (_req, res) => res.json(openapi));
   // Relative Swagger asset URLs need the slash, independently of static middleware.
   app.get(/^\/swagger$/, (_req, res) => res.redirect(301, "/swagger/"));
-  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", customfavIcon: "/favicon.ico?v=vercel", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
+  // Serve the build's explicit asset copies even if Vercel's dependency tracing
+  // omits swagger-ui-dist's dynamically resolved files.
+  app.use("/swagger", express.static(fileURLToPath(new URL("../public/swagger/", import.meta.url)), { index: false }), swaggerUi.serve);
+  // HTML belongs only at the documentation root, never at a missing asset URL.
+  app.get("/swagger/", swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", customfavIcon: "/favicon.ico?v=vercel", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
   app.get("/health", async (_req, res) => {
     try { await db.$queryRawUnsafe("SELECT 1"); res.json({ status: "ok", database: "connected" }); }
     catch { res.status(503).json({ status: "unavailable", database: "disconnected" }); }
