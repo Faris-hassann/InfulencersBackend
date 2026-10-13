@@ -1,6 +1,6 @@
 # Influencers World API
 
-Express 5, TypeScript, Prisma 7, and PostgreSQL. Node 22.12+ is required. The backend root URL redirects directly to Swagger.
+Express 5, TypeScript, Prisma 7, and PostgreSQL. Use Node 22.12+ within the Node 22 release series. The backend root URL redirects directly to Swagger.
 
 ## Setup
 
@@ -64,3 +64,11 @@ API tests exercise all six authenticated HTTP contracts using isolated in-memory
 The Prisma adapter uses a pool of 10 connections with a connection timeout. Set `CORS_ORIGIN` to a comma-separated allowlist if the dashboard is hosted on another origin. `.env` is ignored by Git. No database connection is needed to generate the Prisma client or compile the application.
 
 Dependency overrides pin patched `deepmerge-ts` and `mysql2` versions used by the Prisma tooling; Prisma generation and compilation are verified with those overrides.
+
+## Vercel
+
+Use the Express framework preset and `npm run build`. `src/app.ts` exports the Express application for Vercel; `src/server.ts` starts a listener for local development and `npm start`. The database client is initialized once per application instance in `src/database.ts`. The application factory and tests live separately in `src/application.ts`.
+
+The Node.js engine is pinned to `22.x` to avoid unexpected major runtime upgrades. Configure `DATABASE_URL`, `CORS_ORIGIN` (dashboard origin), `API_PUBLIC_URL` (backend origin), and `NODE_ENV=production` in Vercel's environment settings. The local `.env` is ignored by Git and is not deployed. Database migrations and administrator bootstrap remain explicit operations; builds do not change your database or reset your administrator.
+
+Helmet is imported as a module namespace and invoked through its typed `default` export, which avoids the non-callable namespace error seen in Vercel's TypeScript compilation.

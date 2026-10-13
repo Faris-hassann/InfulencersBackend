@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { createApp } from "../src/app.js";
+import { createApp } from "../src/application.js";
 import { resources } from "../src/resources.js";
 import { memoryDatabase, authenticatedApp } from "./fixtures.js";
 
@@ -59,6 +59,8 @@ test("Contact Us allows server-created date and keeps description plain", async 
 test("Swagger redirect, OpenAPI contract, health and unavailable database", async () => {
   const database = memoryDatabase(); const { agent } = await authenticatedApp(database);
   const redirect = await agent.get("/").expect(302); assert.equal(redirect.headers.location, "/swagger");
+  assert.equal(redirect.headers["x-content-type-options"], "nosniff");
+  assert.equal(redirect.headers["x-frame-options"], "SAMEORIGIN");
   await agent.get("/swagger/").expect(200);
   const swaggerScript = await agent.get("/swagger/swagger-ui-init.js").expect(200);
   assert.match(swaggerScript.text, /X-CMS-Request/);

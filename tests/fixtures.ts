@@ -1,8 +1,8 @@
-import type { Database, Delegate } from "../src/app.js";
+import type { Database, Delegate } from "../src/application.js";
 import { resources } from "../src/resources.js";
 import { hashPassword, hashToken, type AdminIdentity } from "../src/auth.js";
 import request from "supertest";
-import { createApp } from "../src/app.js";
+import { createApp } from "../src/application.js";
 
 export const TEST_EMAIL = "admin@example.test";
 export const TEST_PASSWORD = "Test-password-2026";

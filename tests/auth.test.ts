@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
-import { createApp } from "../src/app.js";
+import { createApp } from "../src/application.js";
 import { hashPassword, verifyPassword, hashToken } from "../src/auth.js";
 import { resources } from "../src/resources.js";
 import { authenticatedApp, memoryDatabase, TEST_EMAIL, TEST_PASSWORD } from "./fixtures.js";
