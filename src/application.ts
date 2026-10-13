@@ -1,4 +1,5 @@
 import express, { type ErrorRequestHandler } from "express";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import { crossOriginOpenerPolicy, crossOriginResourcePolicy, originAgentCluster, referrerPolicy, strictTransportSecurity, xContentTypeOptions, xDnsPrefetchControl, xDownloadOptions, xFrameOptions, xPermittedCrossDomainPolicies, xPoweredBy, xXssProtection } from "helmet";
 import swaggerUi from "swagger-ui-express";
@@ -26,11 +27,13 @@ export function createApp(db: Database) {
   app.use(crossOriginOpenerPolicy(), crossOriginResourcePolicy(), originAgentCluster(), referrerPolicy(), strictTransportSecurity(), xContentTypeOptions(), xDnsPrefetchControl(), xDownloadOptions(), xFrameOptions(), xPermittedCrossDomainPolicies(), xPoweredBy(), xXssProtection());
   app.use(cors({ credentials: true, origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map(value => value.trim()) }));
   app.use(express.json({ limit: "1mb" }));
+  app.get("/favicon.ico", (_req, res) => res.sendFile(fileURLToPath(new URL("../public/favicon.ico", import.meta.url)), { maxAge: "1d" }));
+  app.get("/favicon.png", (_req, res) => res.redirect(308, "/favicon.ico"));
   app.get("/", (_req, res) => res.redirect(302, "/swagger"));
   app.get("/openapi.json", (_req, res) => res.json(openapi));
   // Relative Swagger asset URLs need the slash, independently of static middleware.
   app.get(/^\/swagger$/, (_req, res) => res.redirect(301, "/swagger/"));
-  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
+  app.use("/swagger", swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: "Influencers World · API", customfavIcon: "/favicon.ico?v=vercel", swaggerOptions: { withCredentials: true, requestInterceptor: (request: { headers: Record<string, string> }) => { request.headers["X-CMS-Request"] = "1"; return request; } } }));
   app.get("/health", async (_req, res) => {
     try { await db.$queryRawUnsafe("SELECT 1"); res.json({ status: "ok", database: "connected" }); }
     catch { res.status(503).json({ status: "unavailable", database: "disconnected" }); }

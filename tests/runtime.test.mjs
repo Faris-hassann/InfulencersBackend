@@ -17,6 +17,13 @@ test("production entry starts with require(ESM) disabled and serves Swagger", as
     assert.equal(redirect.headers.location, "/swagger/");
     const html = await request(app).get("/swagger/").expect(200);
     assert.match(html.text, /swagger-ui/);
+    assert.match(html.text, /href="\/favicon\.ico\?v=vercel"/);
+    const icon = await request(app).get("/favicon.ico").expect(200);
+    assert.match(icon.headers["content-type"], /image\/(?:x-icon|vnd\.microsoft\.icon)/);
+    assert.deepEqual([...icon.body.subarray(0, 4)], [0, 0, 1, 0]);
+    const pngIcon = await request(app).get("/favicon.png").expect(308);
+    assert.equal(pngIcon.headers.location, "/favicon.ico");
+    await request(app).get("/favicon.png").redirects(1).expect(200);
     await request(app).get("/swagger/swagger-ui-init.js").expect(200);
     await request(app).get("/swagger/swagger-ui.css").expect(200);
     await request(app).get("/swagger/swagger-ui-bundle.js").expect(200);

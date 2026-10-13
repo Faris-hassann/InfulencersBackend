@@ -5,7 +5,7 @@
   "outputDirectory": null,
   "functions": {
     "app.mjs": {
-      "includeFiles": "dist/**",
+      "includeFiles": "{dist/**,public/favicon.ico}",
       "excludeFiles": "{.env,.env.*,.deployment-check/**}"
     }
   }
