@@ -19,6 +19,22 @@ export interface Delegate {
   delete(args: any): Promise<any>;
 }
 export type Database = Record<(typeof resources)[number]["model"], Delegate> & AuthDatabase & { $queryRawUnsafe(query: string): Promise<unknown> };
+
+function getAllowedSort(model: string): string[] {
+  if (model === "contact") return ["id", "firstName", "firstNameAr", "lastName", "lastNameAr", "email", "createdOn"];
+  if (model === "articleCategory") return ["id", "nameEn", "nameAr", "createdOn"];
+  if (model === "article") return ["id", "titleEn", "titleAr", "publishedOn", "articleCategoryId"];
+  if (model === "award") return ["id", "titleEn", "titleAr", "publishedOn"];
+  return ["id", "title", "titleAr", "publishedOn"];
+}
+
+function getSearchFields(model: string): string[] {
+  if (model === "contact") return ["firstName", "firstNameAr", "lastName", "lastNameAr", "email", "description", "descriptionAr", "phoneNumber"];
+  if (model === "articleCategory") return ["nameEn", "nameAr", "descriptionEn", "descriptionAr"];
+  if (model === "article" || model === "award") return ["titleEn", "titleAr", "descriptionEn", "descriptionAr"];
+  return ["title", "titleAr", "description", "descriptionAr"];
+}
+
 export function createApp(db: Database) {
   const app = express();
   app.disable("x-powered-by");
@@ -52,36 +68,70 @@ export function createApp(db: Database) {
   for (const resource of resources) {
     const route = `/api/${resource.slug}`;
     const delegate = db[resource.model];
-    const contact = resource.model === "contact";
+    const allowed = getAllowedSort(resource.model);
+    const searchFields = getSearchFields(resource.model);
+
     app.get(route, async (req, res) => {
-      const { page, pageSize, search, sortBy, order } = querySchema.parse(req.query);
+      const { page, pageSize, search, sortBy, order, filter } = querySchema.parse(req.query);
       const sort = sortBy ?? resource.date;
-      const allowed = contact ? ["id", "firstName", "lastName", "email", "createdOn"] : ["id", "title", "publishedOn"];
       if (!allowed.includes(sort)) { res.status(400).json({ message: "Invalid sort field for this section" }); return; }
-      const where = search ? { OR: (contact ? ["firstName", "lastName", "email", "description", "phoneNumber"] : ["title", "description"]).map(field => ({ [field]: { contains: search, mode: "insensitive" } })) } : {};
+
+      const searchConditions = search ? searchFields.map(field => ({ [field]: { contains: search, mode: "insensitive" } })) : null;
+      let where: any = {};
+      if (searchConditions && filter) {
+        where = { AND: [{ OR: searchConditions }, filter] };
+      } else if (searchConditions) {
+        where = { OR: searchConditions };
+      } else if (filter) {
+        where = filter;
+      }
+
+      const findArgs: any = {
+        where,
+        orderBy: sort === "id" ? [{ id: order }] : [{ [sort]: order }, { id: order }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      };
+      if (resource.model === "article") {
+        findArgs.include = { articleCategory: true };
+      }
+
       const [data, total] = await Promise.all([
-        delegate.findMany({ where, orderBy: sort === "id" ? [{ id: order }] : [{ [sort]: order }, { id: order }], skip: (page - 1) * pageSize, take: pageSize }),
+        delegate.findMany(findArgs),
         delegate.count({ where }),
       ]);
       res.json({ data, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
     });
+
     app.post(route, async (req, res) => {
-      const data = bodySchema(contact, "POST").parse(req.body);
+      const data = bodySchema(resource.model, "POST").parse(req.body);
       const record = await delegate.create({ data });
       res.status(201).location(`${route}/${record.id}`).json(record);
     });
+
     app.get(`${route}/:id`, async (req, res) => {
-      const record = await delegate.findUnique({ where: { id: idSchema.parse(req.params.id) } });
+      const id = idSchema.parse(req.params.id);
+      const findArgs: any = { where: { id } };
+      if (resource.model === "article") {
+        findArgs.include = { articleCategory: true };
+      }
+      const record = await delegate.findUnique(findArgs);
       if (!record) { res.status(404).json({ message: "Record not found" }); return; }
       res.json(record);
     });
+
     for (const method of ["put", "patch"] as const) {
       app[method](`${route}/:id`, async (req, res) => {
         const id = idSchema.parse(req.params.id);
-        const data = bodySchema(contact, method === "put" ? "PUT" : "PATCH").parse(req.body);
-        res.json(await delegate.update({ where: { id }, data }));
+        const data = bodySchema(resource.model, method === "put" ? "PUT" : "PATCH").parse(req.body);
+        const updateArgs: any = { where: { id }, data };
+        if (resource.model === "article") {
+          updateArgs.include = { articleCategory: true };
+        }
+        res.json(await delegate.update(updateArgs));
       });
     }
+
     app.delete(`${route}/:id`, async (req, res) => {
       await delegate.delete({ where: { id: idSchema.parse(req.params.id) } });
       res.status(204).end();

@@ -34,9 +34,11 @@ model AdminSession {
 model Book {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
+  titleAr String? @db.VarChar(250)
   description String @db.Text
+  descriptionAr String? @db.Text
   imageUrl String @db.VarChar(2048)
-  youtubeUrl String @db.VarChar(2048)
+  youtubeUrl String? @db.VarChar(2048)
   publishedOn DateTime @db.Timestamptz(3)
   @@index([publishedOn, id])
   @@map("books")
@@ -45,9 +47,11 @@ model Book {
 model Podcast {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
+  titleAr String? @db.VarChar(250)
   description String @db.Text
+  descriptionAr String? @db.Text
   imageUrl String @db.VarChar(2048)
-  youtubeUrl String @db.VarChar(2048)
+  youtubeUrl String? @db.VarChar(2048)
   publishedOn DateTime @db.Timestamptz(3)
   @@index([publishedOn, id])
   @@map("podcasts")
@@ -56,9 +60,11 @@ model Podcast {
 model Tip {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
+  titleAr String? @db.VarChar(250)
   description String @db.Text
+  descriptionAr String? @db.Text
   imageUrl String @db.VarChar(2048)
-  youtubeUrl String @db.VarChar(2048)
+  youtubeUrl String? @db.VarChar(2048)
   publishedOn DateTime @db.Timestamptz(3)
   @@index([publishedOn, id])
   @@map("tips_and_tricks")
@@ -67,9 +73,11 @@ model Tip {
 model News {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
+  titleAr String? @db.VarChar(250)
   description String @db.Text
+  descriptionAr String? @db.Text
   imageUrl String @db.VarChar(2048)
-  youtubeUrl String @db.VarChar(2048)
+  youtubeUrl String? @db.VarChar(2048)
   publishedOn DateTime @db.Timestamptz(3)
   @@index([publishedOn, id])
   @@map("news")
@@ -78,9 +86,11 @@ model News {
 model Newsletter {
   id Int @id @default(autoincrement())
   title String @db.VarChar(250)
+  titleAr String? @db.VarChar(250)
   description String @db.Text
+  descriptionAr String? @db.Text
   imageUrl String @db.VarChar(2048)
-  youtubeUrl String @db.VarChar(2048)
+  youtubeUrl String? @db.VarChar(2048)
   publishedOn DateTime @db.Timestamptz(3)
   @@index([publishedOn, id])
   @@map("newsletters")
@@ -89,11 +99,53 @@ model Newsletter {
 model Contact {
   id Int @id @default(autoincrement())
   firstName String @db.VarChar(100)
+  firstNameAr String? @db.VarChar(100)
   lastName String @db.VarChar(100)
+  lastNameAr String? @db.VarChar(100)
   description String @db.Text
+  descriptionAr String? @db.Text
   email String @db.VarChar(254)
   phoneNumber String @db.VarChar(32)
   createdOn DateTime @default(now()) @db.Timestamptz(3)
   @@index([createdOn, id])
   @@map("contacts")
+}
+
+model ArticleCategory {
+  id Int @id @default(autoincrement())
+  nameEn String @db.VarChar(250)
+  nameAr String @db.VarChar(250)
+  descriptionEn String @db.Text
+  descriptionAr String @db.Text
+  createdOn DateTime @default(now()) @db.Timestamptz(3)
+  articles Article[]
+  @@index([createdOn, id])
+  @@map("article_categories")
+}
+
+model Article {
+  id Int @id @default(autoincrement())
+  titleEn String @db.VarChar(250)
+  titleAr String @db.VarChar(250)
+  descriptionEn String @db.Text
+  descriptionAr String @db.Text
+  articleCategoryId Int?
+  articleCategory ArticleCategory? @relation(fields: [articleCategoryId], references: [id], onDelete: SetNull)
+  imageUrls String[] @default([])
+  publishedOn DateTime @default(now()) @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@index([articleCategoryId])
+  @@map("articles")
+}
+
+model Award {
+  id Int @id @default(autoincrement())
+  titleEn String @db.VarChar(250)
+  titleAr String @db.VarChar(250)
+  descriptionEn String @db.Text
+  descriptionAr String @db.Text
+  imageUrls String[] @default([])
+  publishedOn DateTime @default(now()) @db.Timestamptz(3)
+  @@index([publishedOn, id])
+  @@map("awards")
 }
