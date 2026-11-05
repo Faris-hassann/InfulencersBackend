@@ -1,4 +1,4 @@
-import express, { type ErrorRequestHandler } from "express";
+import express, { type ErrorRequestHandler, type Request, type Response, type RequestHandler } from "express";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import { crossOriginOpenerPolicy, crossOriginResourcePolicy, originAgentCluster, referrerPolicy, strictTransportSecurity, xContentTypeOptions, xDnsPrefetchControl, xDownloadOptions, xFrameOptions, xPermittedCrossDomainPolicies, xPoweredBy, xXssProtection } from "helmet";
@@ -41,7 +41,23 @@ export function createApp(db: Database) {
   // Named middleware exports avoid Helmet's ambiguous CJS/ESM default type.
   // This is the same default header set as helmet({ contentSecurityPolicy: false }).
   app.use(crossOriginOpenerPolicy(), crossOriginResourcePolicy(), originAgentCluster(), referrerPolicy(), strictTransportSecurity(), xContentTypeOptions(), xDnsPrefetchControl(), xDownloadOptions(), xFrameOptions(), xPermittedCrossDomainPolicies(), xPoweredBy(), xXssProtection());
-  app.use(cors({ credentials: true, origin: (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map(value => value.trim()) }));
+  const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    ...(process.env.CORS_ORIGIN ?? "").split(",").map(value => value.trim()).filter(Boolean),
+  ];
+  app.use(cors({
+    credentials: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+  }));
   app.use(express.json({ limit: "1mb" }));
   app.get("/favicon.ico", (_req, res) => res.sendFile(fileURLToPath(new URL("../public/favicon.ico", import.meta.url)), { maxAge: "1d" }));
   app.get("/favicon.png", (_req, res) => res.redirect(308, "/favicon.ico"));
@@ -59,9 +75,10 @@ export function createApp(db: Database) {
     catch { res.status(503).json({ status: "unavailable", database: "disconnected" }); }
   });
   const auth = createAuth(db);
+  const adminGuard: RequestHandler[] = [auth.authenticate, auth.csrf];
   app.use("/auth", auth.router);
-  app.use("/api", auth.authenticate, auth.csrf, (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
-  app.get("/api/summary", async (_req, res) => {
+  app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+  app.get("/api/summary", ...adminGuard, async (_req: Request, res: Response) => {
     const totals = await Promise.all(resources.map(async resource => [resource.slug, await db[resource.model].count()]));
     res.json(Object.fromEntries(totals));
   });
@@ -71,7 +88,9 @@ export function createApp(db: Database) {
     const allowed = getAllowedSort(resource.model);
     const searchFields = getSearchFields(resource.model);
 
-    app.get(route, async (req, res) => {
+    // Contacts list is private to admin; public content lists are accessible to all visitors
+    const listGuards: RequestHandler[] = resource.model === "contact" ? adminGuard : [];
+    app.get(route, ...listGuards, async (req: Request, res: Response) => {
       const { page, pageSize, search, sortBy, order, filter } = querySchema.parse(req.query);
       const sort = sortBy ?? resource.date;
       if (!allowed.includes(sort)) { res.status(400).json({ message: "Invalid sort field for this section" }); return; }
@@ -103,13 +122,17 @@ export function createApp(db: Database) {
       res.json({ data, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
     });
 
-    app.post(route, async (req, res) => {
+    // POST /api/contacts is public (website contact inquiry form); other creations require admin
+    const createGuards: RequestHandler[] = resource.model === "contact" ? [] : adminGuard;
+    app.post(route, ...createGuards, async (req: Request, res: Response) => {
       const data = bodySchema(resource.model, "POST").parse(req.body);
       const record = await delegate.create({ data });
       res.status(201).location(`${route}/${record.id}`).json(record);
     });
 
-    app.get(`${route}/:id`, async (req, res) => {
+    // Single item view: contacts require admin; content items are public
+    const itemGuards: RequestHandler[] = resource.model === "contact" ? adminGuard : [];
+    app.get(`${route}/:id`, ...itemGuards, async (req: Request, res: Response) => {
       const id = idSchema.parse(req.params.id);
       const findArgs: any = { where: { id } };
       if (resource.model === "article") {
@@ -121,7 +144,7 @@ export function createApp(db: Database) {
     });
 
     for (const method of ["put", "patch"] as const) {
-      app[method](`${route}/:id`, async (req, res) => {
+      app[method](`${route}/:id`, ...adminGuard, async (req: Request, res: Response) => {
         const id = idSchema.parse(req.params.id);
         const data = bodySchema(resource.model, method === "put" ? "PUT" : "PATCH").parse(req.body);
         const updateArgs: any = { where: { id }, data };
@@ -132,7 +155,7 @@ export function createApp(db: Database) {
       });
     }
 
-    app.delete(`${route}/:id`, async (req, res) => {
+    app.delete(`${route}/:id`, ...adminGuard, async (req: Request, res: Response) => {
       await delegate.delete({ where: { id: idSchema.parse(req.params.id) } });
       res.status(204).end();
     });

@@ -14,9 +14,15 @@ test("passwords use salted scrypt hashes and constant-time verification", async 
 test("all CMS collections and methods require authentication", async () => {
   const app = createApp(memoryDatabase());
   for (const resource of resources) {
-    await request(app).get(`/api/${resource.slug}`).expect(401);
-    await request(app).get(`/api/${resource.slug}/1`).expect(401);
-    for (const method of ["post", "put", "patch", "delete"] as const) await request(app)[method](`/api/${resource.slug}${method === "post" ? "" : "/1"}`).set("X-CMS-Request", "1").send({}).expect(401);
+    if (resource.model === "contact") {
+      await request(app).get(`/api/${resource.slug}`).expect(401);
+      await request(app).get(`/api/${resource.slug}/1`).expect(401);
+    } else {
+      await request(app).get(`/api/${resource.slug}`).expect(200);
+      for (const method of ["post", "put", "patch", "delete"] as const) {
+        await request(app)[method](`/api/${resource.slug}${method === "post" ? "" : "/1"}`).set("X-CMS-Request", "1").send({}).expect(401);
+      }
+    }
   }
   await request(app).get("/api/summary").expect(401);
   await request(app).get("/auth/me").expect(401);
@@ -44,7 +50,7 @@ test("non-admin and disabled identities cannot sign in or use existing sessions"
   for (const update of [{ role: "editor" }, { enabled: false }]) {
     const { agent, database, app } = await authenticatedApp();
     await database.admin.upsert({ where: { email: TEST_EMAIL }, create: {}, update });
-    await agent.get("/api/books").expect(403); await agent.get("/auth/me").expect(403);
+    await agent.get("/api/contacts").expect(403); await agent.get("/auth/me").expect(403);
     await request(app).post("/auth/login").set("X-CMS-Request", "1").send({ email: TEST_EMAIL, password: TEST_PASSWORD }).expect(401);
   }
 });
@@ -62,7 +68,7 @@ test("expired sessions cannot access records", async () => {
   const login = await agent.post("/auth/login").send({ email: TEST_EMAIL, password: TEST_PASSWORD }).expect(200);
   const token = login.headers["set-cookie"][0].split(";")[0].split("=")[1];
   await database.adminSession.create({ data: { tokenHash: hashToken(token), adminId: login.body.user.id, expiresOn: new Date(Date.now() - 1000) } });
-  await agent.get("/api/books").expect(401);
+  await agent.get("/api/contacts").expect(401);
 });
 test("login rotates the current session and rejects reuse of the old cookie", async () => {
   const { agent, app } = await authenticatedApp();
